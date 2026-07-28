@@ -1,8 +1,17 @@
 __pycache__/
 *.pyc
 .env
+.env*.local
+!.env.local
 .venv/
 venv/
 *.db
 .DS_Store
 alembic/versions/__pycache__/
+node_modules/
+.next/
+out/
+dist/
+coverage/
+npm-debug.log*
+tsconfig.tsbuildinfo
