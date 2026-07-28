@@ -5,13 +5,15 @@ import {
   LogOut,
   Menu,
   Network,
-  UserRound
+  UserRound,
+  UsersRound
 } from "lucide-react";
 import { clearToken } from "@/lib/auth";
 
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { href: "/dashboard/org-units", label: "Org Structure", icon: Network }
+  { href: "/dashboard/org-units", label: "Org Structure", icon: Network },
+  { href: "/dashboard/employees", label: "Employees", icon: UsersRound }
 ];
 
 export default function DashboardLayout({
