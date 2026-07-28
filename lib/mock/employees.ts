@@ -63,6 +63,28 @@ export function getOrgUnitName(orgUnitId: string) {
   return flatOrgUnits.find((unit) => unit.id === orgUnitId)?.name ?? "Unknown";
 }
 
+export function getMockEmployee(id: string) {
+  return mockEmployees.find((employee) => employee.id === id) ?? null;
+}
+
+export function getMockReportsChain(id: string) {
+  const employee = getMockEmployee(id);
+
+  if (!employee) {
+    return [];
+  }
+
+  if (employee.id === "emp-001") {
+    return [];
+  }
+
+  if (employee.id === "emp-002" || employee.id === "emp-003") {
+    return mockEmployees.filter((item) => item.id === "emp-001");
+  }
+
+  return mockEmployees.filter((item) => ["emp-001", "emp-004"].includes(item.id));
+}
+
 export async function fetchMockEmployees(params: {
   search?: string;
   org_unit_id?: string;
