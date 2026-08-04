@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Save } from "lucide-react";
 import { flatOrgUnits } from "@/lib/mock/org-units";
+import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import {
   employeeSchema,
   type EmployeeFormValues
@@ -17,9 +18,14 @@ type EmployeeFormProps = {
 
 export function EmployeeForm({ defaultValues, onSubmit }: EmployeeFormProps) {
   const [backendErrors, setBackendErrors] = useState<Record<string, string>>({});
+  const [draft, setDraft] = useLocalStorage<Partial<EmployeeFormValues>>(
+    `employee-form:${defaultValues?.email ?? "new"}`,
+    defaultValues ?? {}
+  );
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting }
   } = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
@@ -31,9 +37,15 @@ export function EmployeeForm({ defaultValues, onSubmit }: EmployeeFormProps) {
       base_salary_etb: 0,
       org_unit_id: "",
       is_ethiopian_national: true,
-      ...defaultValues
+      ...defaultValues,
+      ...draft
     }
   });
+
+  const watchedValues = watch();
+  useMemo(() => {
+    setDraft(watchedValues);
+  }, [setDraft, watchedValues]);
 
   async function submit(values: EmployeeFormValues) {
     setBackendErrors({});
@@ -143,14 +155,17 @@ export function EmployeeForm({ defaultValues, onSubmit }: EmployeeFormProps) {
         Ethiopian national
       </label>
 
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="inline-flex items-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-      >
-        <Save aria-hidden="true" size={16} />
-        {isSubmitting ? "Saving..." : "Save employee"}
-      </button>
+      <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <p>Draft state is being saved locally so you can continue editing later.</p>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+        >
+          <Save aria-hidden="true" size={16} />
+          {isSubmitting ? "Saving..." : "Save employee"}
+        </button>
+      </div>
     </form>
   );
 }

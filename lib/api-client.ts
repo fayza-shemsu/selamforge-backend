@@ -1,7 +1,8 @@
 import axios, { AxiosError } from "axios";
+import { getApiBaseUrl } from "@/lib/config";
 
 export const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: getApiBaseUrl(),
   withCredentials: true,
   headers: {
     "Content-Type": "application/json"
@@ -22,7 +23,7 @@ apiClient.interceptors.response.use(
 
 export function createServerApiClient(token?: string) {
   const client = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL,
+    baseURL: getApiBaseUrl(),
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {})
