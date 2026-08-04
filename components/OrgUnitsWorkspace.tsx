@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, ShieldCheck } from "lucide-react";
 import { OrgUnitModal } from "@/components/OrgUnitModal";
+import { OrgUnitStats } from "@/components/OrgUnitStats";
 import { OrgUnitTree } from "@/components/OrgUnitTree";
 import { flatOrgUnits, mockOrgUnitTree } from "@/lib/mock/org-units";
 import type { OrgUnitFormValues } from "@/lib/validation/org-unit";
@@ -61,12 +62,15 @@ export function OrgUnitsWorkspace() {
         </div>
       </div>
 
+      <OrgUnitStats />
+
       <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
         <OrgUnitTree node={mockOrgUnitTree} />
       </div>
 
       {lastSaved ? (
-        <div className="rounded-md border border-leaf/20 bg-leaf/10 px-4 py-3 text-sm text-leaf">
+        <div className="flex items-center gap-2 rounded-md border border-leaf/20 bg-leaf/10 px-4 py-3 text-sm text-leaf">
+          <ShieldCheck aria-hidden="true" size={16} />
           Saved locally: {lastSaved.name}. This will call Fayza&apos;s org-unit
           endpoint once it is available.
         </div>

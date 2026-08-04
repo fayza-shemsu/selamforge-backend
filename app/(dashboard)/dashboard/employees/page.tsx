@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, Briefcase } from "lucide-react";
+import { EmployeeStatusBadge } from "@/components/EmployeeStatusBadge";
 import { usePaginatedQuery } from "@/lib/hooks/use-paginated-query";
 import {
   fetchMockEmployees,
@@ -116,7 +117,9 @@ export default function EmployeesPage() {
                   </td>
                   <td className="px-4 py-3">{getOrgUnitName(employee.org_unit_id)}</td>
                   <td className="px-4 py-3">{employee.hire_date}</td>
-                  <td className="px-4 py-3 capitalize">{employee.status}</td>
+                  <td className="px-4 py-3">
+                    <EmployeeStatusBadge status={employee.status} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -133,7 +136,8 @@ export default function EmployeesPage() {
                   {employee.first_name} {employee.last_name}
                 </p>
                 <p className="text-sm text-slate-600">{employee.email}</p>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                  <Briefcase aria-hidden="true" size={14} />
                   {getOrgUnitName(employee.org_unit_id)} · {employee.status}
                 </p>
               </Link>
@@ -148,7 +152,7 @@ export default function EmployeesPage() {
 
           {data && data.items.length === 0 ? (
             <div className="p-6 text-center text-sm text-slate-500">
-              No employees match those filters.
+              No employees match those filters. Try a broader keyword or reset the org unit filter.
             </div>
           ) : null}
         </div>

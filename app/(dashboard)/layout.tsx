@@ -6,21 +6,30 @@ import {
   Menu,
   Network,
   UserRound,
-  UsersRound
+  UsersRound,
+  ClipboardList
 } from "lucide-react";
-import { clearToken } from "@/lib/auth";
+import { clearToken, getToken } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/org-units", label: "Org Structure", icon: Network },
-  { href: "/dashboard/employees", label: "Employees", icon: UsersRound }
+  { href: "/dashboard/employees", label: "Employees", icon: UsersRound },
+  { href: "/dashboard/reports", label: "Reports", icon: ClipboardList }
 ];
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children
 }: {
   children: React.ReactNode;
 }) {
+  const token = await getToken();
+
+  if (!token) {
+    redirect("/login?expired=1");
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-ink">
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-slate-200 bg-white px-4 py-5 md:block">
