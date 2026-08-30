@@ -46,7 +46,9 @@ cryptography @ file:///C:/miniconda3/conda-bld/cryptography-split_1761932023265/
 defusedxml==0.7.1
 Deprecated==1.3.1
 distro @ file:///C:/Users/dev-admin/perseverance-python-buildout/croot/distro_1729059153117/work
+dnspython==2.8.0
 ecdsa==0.19.2
+email-validator==2.3.0
 fastapi==0.136.1
 filelock==3.29.4
 fonttools==4.63.0
