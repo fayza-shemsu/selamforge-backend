@@ -30,3 +30,61 @@ def get_tenant_context(token: str = Depends(oauth2_scheme)) -> TenantContext:
     user_id_ctx.set(user_id)
 
     return TenantContext(org_id=org_id, user_id=user_id, role=role)
+
+
+from typing import Generator
+
+from sqlalchemy import event
+from sqlalchemy.orm import Session, with_loader_criteria
+
+from app.core.db import SessionLocal
+from app.models.base import TenantScopedModel
+
+
+def get_tenant_db(ctx: TenantContext = Depends(get_tenant_context)) -> Generator[Session, None, None]:
+    session = SessionLocal()
+
+    @event.listens_for(session, "do_orm_execute")
+    def _add_tenant_filter(execute_state):
+        if execute_state.is_select:
+            execute_state.statement = execute_state.statement.options(
+                with_loader_criteria(
+                    TenantScopedModel,
+                    lambda cls: cls.org_id == ctx.org_id,
+                    include_aliases=True,
+                )
+            )
+
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+from typing import Generator
+
+from sqlalchemy import event
+from sqlalchemy.orm import Session, with_loader_criteria
+
+from app.core.db import SessionLocal
+from app.models.base import TenantScopedModel
+
+
+def get_tenant_db(ctx: TenantContext = Depends(get_tenant_context)) -> Generator[Session, None, None]:
+    session = SessionLocal()
+
+    @event.listens_for(session, "do_orm_execute")
+    def _add_tenant_filter(execute_state):
+        if execute_state.is_select:
+            execute_state.statement = execute_state.statement.options(
+                with_loader_criteria(
+                    TenantScopedModel,
+                    lambda cls: cls.org_id == ctx.org_id,
+                    include_aliases=True,
+                )
+            )
+
+    try:
+        yield session
+    finally:
+        session.close()
