@@ -1,22 +1,39 @@
 import Link from "next/link";
 import {
   Building2,
+  CalendarClock,
+  DollarSign,
+  GraduationCap,
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquareText,
+  Sparkles,
   Network,
+  Settings,
+  Target,
+  Trophy,
   UserRound,
   UsersRound,
-  ClipboardList
+  UserSearch
 } from "lucide-react";
 import { clearToken, getToken } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { decodeTokenClaims } from "@/lib/auth-token";
 
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/org-units", label: "Org Structure", icon: Network },
   { href: "/dashboard/employees", label: "Employees", icon: UsersRound },
-  { href: "/dashboard/reports", label: "Reports", icon: ClipboardList }
+  { href: "/dashboard/talent", label: "Talent Acquisition", icon: UserSearch },
+  { href: "/dashboard/okr", label: "OKR", icon: Target },
+  { href: "/dashboard/cfr", label: "CFR", icon: MessageSquareText },
+  { href: "/dashboard/learning", label: "Learning & Growth", icon: GraduationCap },
+  { href: "/dashboard/payroll", label: "Payroll", icon: DollarSign },
+  { href: "/dashboard/attendance", label: "Time & Attendance", icon: CalendarClock },
+  { href: "/dashboard/compensation", label: "Compensation", icon: Trophy },
+  { href: "/dashboard/copilot", label: "AI Copilot", icon: Sparkles },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings }
 ];
 
 export default async function DashboardLayout({
@@ -25,6 +42,7 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const token = await getToken();
+  const claims = decodeTokenClaims(token);
 
   if (!token) {
     redirect("/login?expired=1");
@@ -70,7 +88,7 @@ export default async function DashboardLayout({
             <Menu aria-hidden="true" size={20} />
           </button>
           <div className="hidden text-sm font-medium text-slate-600 md:block">
-            Foundation workspace
+            Phase 1 workforce workspace
           </div>
           <form action={clearToken}>
             <button
@@ -79,7 +97,9 @@ export default async function DashboardLayout({
               title="Sign out"
             >
               <UserRound aria-hidden="true" size={16} />
-              <span className="hidden sm:inline">Selam</span>
+              <span className="hidden sm:inline capitalize">
+                {claims?.role ?? "Selam"}
+              </span>
               <LogOut aria-hidden="true" size={16} />
             </button>
           </form>

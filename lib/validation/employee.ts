@@ -1,8 +1,16 @@
 import { z } from "zod";
 
 export const employeeSchema = z.object({
-  first_name: z.string().min(1, "First name is required."),
-  last_name: z.string().min(1, "Last name is required."),
+  first_name: z
+    .string()
+    .trim()
+    .min(1, "First name is required.")
+    .max(80, "First name is too long."),
+  last_name: z
+    .string()
+    .trim()
+    .min(1, "Last name is required.")
+    .max(80, "Last name is too long."),
   email: z.string().email("Enter a valid email address."),
   hire_date: z
     .string()

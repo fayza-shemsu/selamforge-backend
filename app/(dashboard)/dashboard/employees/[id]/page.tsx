@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { EmployeeForm } from "@/components/EmployeeForm";
+import { LeaveBalanceCard } from "@/components/LeaveBalanceCard";
 import { ReportsChain } from "@/components/ReportsChain";
 import { Briefcase, CalendarDays, Mail, ShieldCheck } from "lucide-react";
 import {
@@ -100,6 +101,8 @@ export default function EmployeeDetailPage({ params }: EmployeeDetailPageProps) 
           <ReportsChain chain={reportsChain} />
         </div>
       </section>
+
+      <LeaveBalanceCard />
 
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
         <h2 className="text-lg font-semibold text-ink">Edit employee</h2>

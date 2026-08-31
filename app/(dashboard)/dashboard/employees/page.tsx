@@ -51,12 +51,20 @@ export default function EmployeesPage() {
             {" {items, total, page, page_size}"}.
           </p>
         </div>
-        <Link
-          href="/dashboard/employees/new"
-          className="inline-flex items-center justify-center rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
-        >
-          Add employee
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/dashboard/employees/import"
+            className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Import CSV
+          </Link>
+          <Link
+            href="/dashboard/employees/new"
+            className="inline-flex items-center justify-center rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+          >
+            Add employee
+          </Link>
+        </div>
       </div>
 
       <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
@@ -138,7 +146,7 @@ export default function EmployeesPage() {
                 <p className="text-sm text-slate-600">{employee.email}</p>
                 <p className="mt-2 flex items-center gap-2 text-xs text-slate-500">
                   <Briefcase aria-hidden="true" size={14} />
-                  {getOrgUnitName(employee.org_unit_id)} · {employee.status}
+                  {getOrgUnitName(employee.org_unit_id)} / {employee.status}
                 </p>
               </Link>
             ))}
