@@ -39,6 +39,7 @@ def get_tenant_context(token: str = Depends(oauth2_scheme)) -> TenantContext:
 
 def get_tenant_db(ctx: TenantContext = Depends(get_tenant_context)) -> Generator[Session, None, None]:
     session = SessionLocal()
+    org_id = ctx.org_id  # plain str, safe for SQLAlchemy lambda caching
 
     @event.listens_for(session, "do_orm_execute")
     def _add_tenant_filter(execute_state):
@@ -46,7 +47,7 @@ def get_tenant_db(ctx: TenantContext = Depends(get_tenant_context)) -> Generator
             execute_state.statement = execute_state.statement.options(
                 with_loader_criteria(
                     TenantScopedModel,
-                    lambda cls: cls.org_id == ctx.org_id,
+                    lambda cls: cls.org_id == org_id,
                     include_aliases=True,
                 )
             )
