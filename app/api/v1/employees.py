@@ -25,6 +25,7 @@ def create_employee(
     employee = Employee(
         org_id=ctx.org_id,
         org_unit_id=payload.org_unit_id,
+        manager_id=payload.manager_id,
         first_name=payload.first_name,
         last_name=payload.last_name,
         email=payload.email,
@@ -102,3 +103,47 @@ def delete_employee(
     employee.status = "inactive"
     db.commit()
     return {"detail": "employee deactivated"}
+
+
+@router.get("/{employee_id}/reports-chain")
+def get_reports_chain(
+    employee_id: uuid.UUID,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_tenant_db),
+):
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="employee not found")
+
+    chain = []
+    seen = {employee.id}
+    current = employee
+
+    max_depth = 20
+    for _ in range(max_depth):
+        if current.manager_id is None:
+            break
+        if current.manager_id in seen:
+            raise HTTPException(status_code=400, detail="cycle detected in manager chain")
+
+        manager = db.query(Employee).filter(Employee.id == current.manager_id).first()
+        if manager is None:
+            break
+
+        chain.append(EmployeeOut.model_validate(manager))
+        seen.add(manager.id)
+        current = manager
+    else:
+        raise HTTPException(status_code=400, detail="manager chain exceeds maximum depth")
+
+    return {"employee_id": employee_id, "chain": chain}
+
+
+@router.get("/{employee_id}/direct-reports")
+def get_direct_reports(
+    employee_id: uuid.UUID,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_tenant_db),
+):
+    reports = db.query(Employee).filter(Employee.manager_id == employee_id).all()
+    return {"employee_id": employee_id, "direct_reports": [EmployeeOut.model_validate(r) for r in reports]}

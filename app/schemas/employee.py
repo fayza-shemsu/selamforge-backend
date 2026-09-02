@@ -8,6 +8,7 @@ from pydantic import BaseModel, EmailStr
 
 class EmployeeCreate(BaseModel):
     org_unit_id: Optional[UUID] = None
+    manager_id: Optional[UUID] = None
     first_name: str
     last_name: str
     email: EmailStr
@@ -18,6 +19,7 @@ class EmployeeCreate(BaseModel):
 
 class EmployeeUpdate(BaseModel):
     org_unit_id: Optional[UUID] = None
+    manager_id: Optional[UUID] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: Optional[EmailStr] = None
@@ -30,6 +32,7 @@ class EmployeeUpdate(BaseModel):
 class EmployeeOut(BaseModel):
     id: UUID
     org_unit_id: Optional[UUID] = None
+    manager_id: Optional[UUID] = None
     first_name: str
     last_name: str
     email: str

@@ -20,4 +20,5 @@ class Employee(Base, TenantScopedModel):
     base_salary_etb = Column(Numeric(12, 2), nullable=False)
     is_ethiopian_national = Column(Boolean, nullable=False, default=True)
     status = Column(String, nullable=False, default="active")
+    manager_id = Column(UUID(as_uuid=True), ForeignKey("employees.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
