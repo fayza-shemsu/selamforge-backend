@@ -23,7 +23,7 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 from app.core.db import Base
-from app.models import org, user, org_unit  # noqa: F401 - import registers tables on Base.metadata
+from app.models import org, user, org_unit, employee  # noqa: F401 - import registers tables on Base.metadata
 
 target_metadata = Base.metadata
 
