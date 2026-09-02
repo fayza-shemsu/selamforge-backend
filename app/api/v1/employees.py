@@ -47,7 +47,7 @@ def list_employees(
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_tenant_db),
 ):
-    query = db.query(Employee).filter(Employee.status != "deleted")
+    query = db.query(Employee).filter(Employee.status != "inactive")
 
     if org_unit_id is not None:
         query = query.filter(Employee.org_unit_id == org_unit_id)
