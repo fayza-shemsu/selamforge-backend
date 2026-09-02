@@ -25,6 +25,7 @@ def create_employee(
     employee = Employee(
         org_id=ctx.org_id,
         org_unit_id=payload.org_unit_id,
+        manager_id=payload.manager_id,
         first_name=payload.first_name,
         last_name=payload.last_name,
         email=payload.email,
