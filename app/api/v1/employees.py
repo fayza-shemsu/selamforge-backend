@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import TenantContext, get_tenant_context, get_tenant_db
 from app.core.pagination import paginate
+from app.core.events import emit_event
 from app.models.employee import Employee
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeOut
 
@@ -35,6 +36,16 @@ def create_employee(
         status="active",
     )
     db.add(employee)
+    db.flush()  # assigns employee.id without committing yet
+
+    emit_event(
+        db,
+        org_id=ctx.org_id,
+        event_type="employee.created",
+        source_module="employees",
+        payload={"employee_id": str(employee.id)},
+    )
+
     db.commit()
     db.refresh(employee)
     return employee
