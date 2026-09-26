@@ -7,8 +7,8 @@ from app.core.handlers import registry
 from app.models.event import Event
 
 # Import handler modules here so their @on_event decorators run and
-# populate the registry before the worker loop starts. Empty for now -
-# Day 9 will add the first one (app.handlers.employee_handlers).
+# populate the registry before the worker loop starts.
+import app.handlers.employee_handlers  # noqa: F401
 
 
 def process_batch(session, batch_size: int = 10) -> int:
