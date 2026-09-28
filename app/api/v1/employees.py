@@ -8,9 +8,20 @@ from app.core.deps import TenantContext, get_tenant_context, get_tenant_db, requ
 from app.core.pagination import paginate
 from app.core.events import emit_event
 from app.models.employee import Employee
+from app.models.org_unit import OrgUnit
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeOut
 
 router = APIRouter(prefix="/employees", tags=["employees"])
+
+
+def _validate_refs(db, manager_id, org_unit_id):
+    """The manager and org unit must belong to the caller's own org."""
+    if manager_id is not None:
+        if db.query(Employee).filter(Employee.id == manager_id).first() is None:
+            raise HTTPException(status_code=400, detail="manager_id not found")
+    if org_unit_id is not None:
+        if db.query(OrgUnit).filter(OrgUnit.id == org_unit_id).first() is None:
+            raise HTTPException(status_code=400, detail="org_unit_id not found")
 
 
 @router.post("", response_model=EmployeeOut)
@@ -22,6 +33,8 @@ def create_employee(
     existing = db.query(Employee).filter(Employee.email == payload.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="employee with this email already exists")
+
+    _validate_refs(db, payload.manager_id, payload.org_unit_id)
 
     employee = Employee(
         org_id=ctx.org_id,
@@ -93,6 +106,7 @@ def update_employee(
         raise HTTPException(status_code=404, detail="employee not found")
 
     update_data = payload.model_dump(exclude_unset=True)
+    _validate_refs(db, update_data.get("manager_id"), update_data.get("org_unit_id"))
     for field, value in update_data.items():
         setattr(employee, field, value)
 
