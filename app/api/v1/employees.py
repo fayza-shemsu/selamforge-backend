@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.core.deps import TenantContext, get_tenant_context, get_tenant_db
+from app.core.deps import TenantContext, get_tenant_context, get_tenant_db, require_role
 from app.core.pagination import paginate
 from app.core.events import emit_event
 from app.models.employee import Employee
@@ -104,7 +104,7 @@ def update_employee(
 @router.delete("/{employee_id}")
 def delete_employee(
     employee_id: uuid.UUID,
-    ctx: TenantContext = Depends(get_tenant_context),
+    ctx: TenantContext = Depends(require_role("admin")),
     db: Session = Depends(get_tenant_db),
 ):
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
