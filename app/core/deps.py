@@ -56,3 +56,14 @@ def get_tenant_db(ctx: TenantContext = Depends(get_tenant_context)) -> Generator
         yield session
     finally:
         session.close()
+
+
+def require_role(*roles: str):
+    """Dependency factory: allow the request only if the token's role is in `roles`."""
+
+    def checker(ctx: TenantContext = Depends(get_tenant_context)) -> TenantContext:
+        if ctx.role not in roles:
+            raise HTTPException(status_code=403, detail="insufficient permissions")
+        return ctx
+
+    return checker

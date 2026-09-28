@@ -4,7 +4,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.deps import TenantContext, get_tenant_context, get_tenant_db
+from app.core.deps import TenantContext, get_tenant_context, get_tenant_db, require_role
 from app.models.org_unit import OrgUnit
 from app.schemas.org_unit import (
     OrgUnitCreate,
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/org-units", tags=["org-units"])
 @router.post("", response_model=OrgUnitOut)
 def create_org_unit(
     payload: OrgUnitCreate,
-    ctx: TenantContext = Depends(get_tenant_context),
+    ctx: TenantContext = Depends(require_role("admin")),
     db: Session = Depends(get_tenant_db),
 ):
     org_unit = OrgUnit(
@@ -77,7 +77,7 @@ def get_org_unit_tree(
 def update_org_unit(
     org_unit_id: uuid.UUID,
     payload: OrgUnitUpdate,
-    ctx: TenantContext = Depends(get_tenant_context),
+    ctx: TenantContext = Depends(require_role("admin")),
     db: Session = Depends(get_tenant_db),
 ):
     org_unit = db.query(OrgUnit).filter(OrgUnit.id == org_unit_id).first()
@@ -99,7 +99,7 @@ def update_org_unit(
 @router.delete("/{org_unit_id}")
 def delete_org_unit(
     org_unit_id: uuid.UUID,
-    ctx: TenantContext = Depends(get_tenant_context),
+    ctx: TenantContext = Depends(require_role("admin")),
     db: Session = Depends(get_tenant_db),
 ):
     org_unit = db.query(OrgUnit).filter(OrgUnit.id == org_unit_id).first()
