@@ -1,7 +1,10 @@
+import csv
+import io
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.deps import TenantContext, get_tenant_context, get_tenant_db, require_role
@@ -172,3 +175,134 @@ def get_direct_reports(
 ):
     reports = db.query(Employee).filter(Employee.manager_id == employee_id).all()
     return {"employee_id": employee_id, "direct_reports": [EmployeeOut.model_validate(r) for r in reports]}
+
+
+# ---- CSV import (Day 14) ----------------------------------------------------
+
+MAX_IMPORT_BYTES = 2 * 1024 * 1024
+MAX_IMPORT_ROWS = 1000
+
+
+def _parse_employee_csv(text, known_units, known_employees, existing_emails):
+    """Validate every CSV row. Returns (valid_payloads, errors).
+
+    Row numbers are file line numbers: the header is row 1, the first data row is row 2.
+    """
+    reader = csv.DictReader(io.StringIO(text))
+    reader.fieldnames = [name.strip() for name in (reader.fieldnames or [])]
+
+    required = [name for name, field in EmployeeCreate.model_fields.items() if field.is_required()]
+    missing = [name for name in required if name not in reader.fieldnames]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail="missing required column(s): " + ", ".join(missing),
+        )
+
+    valid, errors = [], []
+    seen_in_file = set()
+    processed = 0
+    for raw_row in reader:
+        row_number = reader.line_num
+        processed += 1
+        if processed > MAX_IMPORT_ROWS:
+            raise HTTPException(status_code=413, detail=f"too many rows (max {MAX_IMPORT_ROWS})")
+
+        # A blank cell means "not provided": required fields then report "Field required"
+        # and optional fields fall back to their defaults.
+        cleaned = {
+            key: value.strip()
+            for key, value in raw_row.items()
+            if key and isinstance(value, str) and value.strip()
+        }
+        if not cleaned:
+            continue
+
+        try:
+            payload = EmployeeCreate.model_validate(cleaned)
+        except ValidationError as exc:
+            for err in exc.errors():
+                errors.append({
+                    "row": row_number,
+                    "field": ".".join(str(part) for part in err["loc"]) or "row",
+                    "message": err["msg"],
+                })
+            continue
+
+        problems = []
+        email_key = payload.email.lower()
+        if email_key in existing_emails:
+            problems.append(("email", "an employee with this email already exists"))
+        elif email_key in seen_in_file:
+            problems.append(("email", "duplicate of an earlier row in this file"))
+        if payload.manager_id is not None and str(payload.manager_id) not in known_employees:
+            problems.append(("manager_id", "manager_id not found"))
+        if payload.org_unit_id is not None and str(payload.org_unit_id) not in known_units:
+            problems.append(("org_unit_id", "org_unit_id not found"))
+
+        if problems:
+            for field, message in problems:
+                errors.append({"row": row_number, "field": field, "message": message})
+            continue
+
+        seen_in_file.add(email_key)
+        valid.append(payload)
+
+    return valid, errors
+
+
+@router.post("/import")
+def import_employees(
+    file: UploadFile = File(...),
+    ctx: TenantContext = Depends(require_role("admin")),
+    db: Session = Depends(get_tenant_db),
+):
+    """Bulk-create employees from a CSV file.
+
+    Valid rows are committed in one transaction. Invalid rows are returned as
+    {row, field, message} and never block the valid ones.
+    """
+    raw = file.file.read(MAX_IMPORT_BYTES + 1)
+    if len(raw) > MAX_IMPORT_BYTES:
+        raise HTTPException(status_code=413, detail="file too large (max 2 MB)")
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="file must be a UTF-8 encoded CSV")
+
+    # Tenant-filtered queries: only this org's units and employees are visible here.
+    known_units = {str(unit.id) for unit in db.query(OrgUnit).all()}
+    employees = db.query(Employee).all()
+    known_employees = {str(e.id) for e in employees}
+    existing_emails = {e.email.lower() for e in employees}
+
+    try:
+        valid, errors = _parse_employee_csv(text, known_units, known_employees, existing_emails)
+    except csv.Error:
+        raise HTTPException(status_code=400, detail="could not parse the CSV file")
+
+    for payload in valid:
+        employee = Employee(
+            id=uuid.uuid4(),
+            org_id=ctx.org_id,
+            org_unit_id=payload.org_unit_id,
+            manager_id=payload.manager_id,
+            first_name=payload.first_name,
+            last_name=payload.last_name,
+            email=payload.email,
+            hire_date=payload.hire_date,
+            base_salary_etb=payload.base_salary_etb,
+            is_ethiopian_national=payload.is_ethiopian_national,
+            status="active",
+        )
+        db.add(employee)
+        emit_event(
+            db,
+            org_id=ctx.org_id,
+            event_type="employee.created",
+            source_module="employees",
+            payload={"employee_id": str(employee.id)},
+        )
+
+    db.commit()
+    return {"created": len(valid), "errors": errors}
