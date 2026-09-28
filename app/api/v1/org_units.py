@@ -2,6 +2,7 @@ import uuid
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.deps import TenantContext, get_tenant_context, get_tenant_db, require_role
@@ -116,6 +117,10 @@ def delete_org_unit(
     if not org_unit:
         raise HTTPException(status_code=404, detail="org unit not found")
 
-    db.delete(org_unit)
-    db.commit()
+    try:
+        db.delete(org_unit)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="org unit still has employees assigned")
     return {"detail": "deleted"}
