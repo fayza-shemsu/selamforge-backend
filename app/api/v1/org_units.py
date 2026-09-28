@@ -16,12 +16,21 @@ from app.schemas.org_unit import (
 router = APIRouter(prefix="/org-units", tags=["org-units"])
 
 
+def _validate_parent(db, parent_unit_id):
+    """The parent unit must belong to the caller's own org."""
+    if parent_unit_id is not None:
+        if db.query(OrgUnit).filter(OrgUnit.id == parent_unit_id).first() is None:
+            raise HTTPException(status_code=400, detail="parent_unit_id not found")
+
+
 @router.post("", response_model=OrgUnitOut)
 def create_org_unit(
     payload: OrgUnitCreate,
     ctx: TenantContext = Depends(require_role("admin")),
     db: Session = Depends(get_tenant_db),
 ):
+    _validate_parent(db, payload.parent_unit_id)
+
     org_unit = OrgUnit(
         org_id=ctx.org_id,
         name=payload.name,
@@ -89,6 +98,7 @@ def update_org_unit(
     if payload.unit_type is not None:
         org_unit.unit_type = payload.unit_type
     if payload.parent_unit_id is not None:
+        _validate_parent(db, payload.parent_unit_id)
         org_unit.parent_unit_id = payload.parent_unit_id
 
     db.commit()
