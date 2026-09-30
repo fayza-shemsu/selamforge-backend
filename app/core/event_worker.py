@@ -1,3 +1,4 @@
+import app.models  # noqa: F401 -- registers all models so FK targets resolve
 import time
 
 from sqlalchemy import select
