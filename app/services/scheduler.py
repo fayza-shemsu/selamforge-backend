@@ -1,6 +1,13 @@
 import logging
+from datetime import date
 
 from apscheduler.schedulers.background import BackgroundScheduler
+
+from app.core.db import SessionLocal
+from app.models.employee import Employee
+import app.models  # noqa: F401 -- registers all models so FK targets resolve
+from app.models.leave_balance import LeaveBalance
+from app.services.leave import calculate_annual_leave_entitlement
 
 logger = logging.getLogger(__name__)
 
@@ -8,12 +15,37 @@ scheduler = BackgroundScheduler()
 
 
 def run_leave_accrual():
-    """Nightly job: accrue leave for all employees.
+    """Nightly job: accrue leave proportionally for every active employee.
 
-    Stub for Day 17 — actual proportional accrual logic
-    (entitlement / 365 per run) is implemented on Day 18.
+    Adds entitlement / 365 to accrued_days each run, capped at the
+    employee's full annual entitlement so a balance never grows past
+    what they're owed for the year.
     """
-    logger.info("run_leave_accrual: stub called, no-op until Day 18")
+    with SessionLocal() as session:
+        employees = session.query(Employee).filter(Employee.status == "active").all()
+
+        updated = 0
+        for employee in employees:
+            balance = (
+                session.query(LeaveBalance)
+                .filter(LeaveBalance.employee_id == employee.id)
+                .first()
+            )
+            if balance is None:
+                logger.warning("No leave_balances row for employee %s, skipping", employee.id)
+                continue
+
+            years_of_service = (date.today() - employee.hire_date).days // 365
+            entitlement = calculate_annual_leave_entitlement(years_of_service)
+            daily_accrual = entitlement / 365
+
+            new_accrued = float(balance.accrued_days) + daily_accrual
+            balance.accrued_days = min(new_accrued, entitlement)
+            updated += 1
+
+        session.commit()
+        logger.info("run_leave_accrual: updated %s employees", updated)
+        return updated
 
 
 def start_scheduler():

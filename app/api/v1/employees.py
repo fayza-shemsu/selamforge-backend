@@ -12,6 +12,7 @@ from app.core.pagination import paginate
 from app.core.events import emit_event
 from app.models.employee import Employee
 from app.models.org_unit import OrgUnit
+from app.models.leave_balance import LeaveBalance
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeOut
 
 router = APIRouter(prefix="/employees", tags=["employees"])
@@ -306,3 +307,27 @@ def import_employees(
 
     db.commit()
     return {"created": len(valid), "errors": errors}
+
+
+@router.get("/{employee_id}/leave-balance")
+def get_leave_balance(
+    employee_id: uuid.UUID,
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_tenant_db),
+):
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="employee not found")
+
+    balance = db.query(LeaveBalance).filter(LeaveBalance.employee_id == employee_id).first()
+    if not balance:
+        raise HTTPException(status_code=404, detail="leave balance not found")
+
+    accrued = float(balance.accrued_days)
+    used = float(balance.used_days)
+    return {
+        "employee_id": str(employee_id),
+        "accrued_days": round(accrued, 2),
+        "used_days": round(used, 2),
+        "remaining_days": round(accrued - used, 2),
+    }
