@@ -7,3 +7,4 @@ from app.models.org_unit import OrgUnit
 from app.models.employee import Employee
 from app.models.leave_balance import LeaveBalance
 from app.models.event import Event
+from app.models.attendance_log import AttendanceLog
