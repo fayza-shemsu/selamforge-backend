@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from app.core.deps import TenantContext, get_tenant_context, get_tenant_db
 from app.models.attendance_log import AttendanceLog
 from app.models.employee import Employee
+from app.models.org_unit import OrgUnit
+from app.services.geo import haversine_meters
 from app.schemas.attendance import ClockInRequest, ClockOutRequest, AttendanceLogOut
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
@@ -31,6 +33,21 @@ def clock_in(
     )
     if open_log:
         raise HTTPException(status_code=409, detail="employee already clocked in")
+
+    if employee.org_unit_id is not None and payload.geofence_lat is not None and payload.geofence_lng is not None:
+        org_unit = db.query(OrgUnit).filter(OrgUnit.id == employee.org_unit_id).first()
+        if org_unit and org_unit.latitude is not None and org_unit.longitude is not None:
+            distance = haversine_meters(
+                float(org_unit.latitude),
+                float(org_unit.longitude),
+                float(payload.geofence_lat),
+                float(payload.geofence_lng),
+            )
+            if distance > org_unit.allowed_radius_meters:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"clock-in location is {distance:.0f}m from the allowed site, which only permits {org_unit.allowed_radius_meters}m",
+                )
 
     log = AttendanceLog(
         org_id=ctx.org_id,
