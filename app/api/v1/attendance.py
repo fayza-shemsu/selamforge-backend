@@ -9,6 +9,9 @@ from app.core.deps import TenantContext, get_tenant_context, get_tenant_db
 from app.core.pagination import paginate
 from app.models.attendance_log import AttendanceLog
 from app.models.employee import Employee
+from app.models.org_unit import OrgUnit
+from app.core.events import emit_event
+from app.services.geo import haversine_meters
 from app.schemas.attendance import ClockInRequest, ClockOutRequest, AttendanceLogOut
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
@@ -66,6 +69,21 @@ def clock_in(
     if open_log:
         raise HTTPException(status_code=409, detail="employee already clocked in")
 
+    if employee.org_unit_id is not None and payload.geofence_lat is not None and payload.geofence_lng is not None:
+        org_unit = db.query(OrgUnit).filter(OrgUnit.id == employee.org_unit_id).first()
+        if org_unit and org_unit.latitude is not None and org_unit.longitude is not None:
+            distance = haversine_meters(
+                float(org_unit.latitude),
+                float(org_unit.longitude),
+                float(payload.geofence_lat),
+                float(payload.geofence_lng),
+            )
+            if distance > org_unit.allowed_radius_meters:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"clock-in location is {distance:.0f}m from the allowed site, which only permits {org_unit.allowed_radius_meters}m",
+                )
+
     log = AttendanceLog(
         org_id=ctx.org_id,
         employee_id=payload.employee_id,
@@ -102,6 +120,25 @@ def clock_out(
         raise HTTPException(status_code=409, detail="employee is not clocked in")
 
     open_log.clock_out_at = datetime.utcnow()
+
+    elapsed = open_log.clock_out_at - open_log.clock_in_at
+    hours_worked = round(elapsed.total_seconds() / 3600, 2)
+    standard_hours = 8.0
+    overtime_hours = round(max(0.0, hours_worked - standard_hours), 2)
+
+    emit_event(
+        db,
+        org_id=ctx.org_id,
+        event_type="attendance.clock_out",
+        source_module="attendance",
+        payload={
+            "employee_id": str(open_log.employee_id),
+            "attendance_log_id": str(open_log.id),
+            "hours_worked": hours_worked,
+            "overtime_hours": overtime_hours,
+        },
+    )
+
     db.commit()
     db.refresh(open_log)
     return open_log
