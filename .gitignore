@@ -16,3 +16,5 @@ coverage/
 npm-debug.log*
 tsconfig.tsbuildinfo
 dev-server*.log
+.env.*
+*_TEMP*

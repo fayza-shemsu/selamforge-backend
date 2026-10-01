@@ -11,7 +11,7 @@ from app.core.db import SessionLocal
 from app.core.security import decode_token
 from app.models.base import TenantScopedModel
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/token")
 
 
 @dataclass
@@ -39,6 +39,7 @@ def get_tenant_context(token: str = Depends(oauth2_scheme)) -> TenantContext:
 
 def get_tenant_db(ctx: TenantContext = Depends(get_tenant_context)) -> Generator[Session, None, None]:
     session = SessionLocal()
+    org_id = ctx.org_id  # plain str, safe for SQLAlchemy lambda caching
 
     @event.listens_for(session, "do_orm_execute")
     def _add_tenant_filter(execute_state):
@@ -46,7 +47,7 @@ def get_tenant_db(ctx: TenantContext = Depends(get_tenant_context)) -> Generator
             execute_state.statement = execute_state.statement.options(
                 with_loader_criteria(
                     TenantScopedModel,
-                    lambda cls: cls.org_id == ctx.org_id,
+                    lambda cls: cls.org_id == org_id,
                     include_aliases=True,
                 )
             )
@@ -55,3 +56,14 @@ def get_tenant_db(ctx: TenantContext = Depends(get_tenant_context)) -> Generator
         yield session
     finally:
         session.close()
+
+
+def require_role(*roles: str):
+    """Dependency factory: allow the request only if the token's role is in `roles`."""
+
+    def checker(ctx: TenantContext = Depends(get_tenant_context)) -> TenantContext:
+        if ctx.role not in roles:
+            raise HTTPException(status_code=403, detail="insufficient permissions")
+        return ctx
+
+    return checker
