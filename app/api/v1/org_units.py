@@ -17,11 +17,20 @@ from app.schemas.org_unit import (
 router = APIRouter(prefix="/org-units", tags=["org-units"])
 
 
-def _validate_parent(db, parent_unit_id):
+def _validate_parent(db, parent_unit_id, unit_id=None):
     """The parent unit must belong to the caller's own org."""
     if parent_unit_id is not None:
-        if db.query(OrgUnit).filter(OrgUnit.id == parent_unit_id).first() is None:
+        parent = db.query(OrgUnit).filter(OrgUnit.id == parent_unit_id).first()
+        if parent is None:
             raise HTTPException(status_code=400, detail="parent_unit_id not found")
+        seen = set()
+        while parent is not None:
+            if parent.id == unit_id or parent.id in seen:
+                raise HTTPException(status_code=400, detail="org unit hierarchy cannot contain a cycle")
+            seen.add(parent.id)
+            if parent.parent_unit_id is None:
+                break
+            parent = db.query(OrgUnit).filter(OrgUnit.id == parent.parent_unit_id).first()
 
 
 @router.post("", response_model=OrgUnitOut)
@@ -98,8 +107,8 @@ def update_org_unit(
         org_unit.name = payload.name
     if payload.unit_type is not None:
         org_unit.unit_type = payload.unit_type
-    if payload.parent_unit_id is not None:
-        _validate_parent(db, payload.parent_unit_id)
+    if "parent_unit_id" in payload.model_fields_set:
+        _validate_parent(db, payload.parent_unit_id, unit_id=org_unit_id)
         org_unit.parent_unit_id = payload.parent_unit_id
 
     db.commit()

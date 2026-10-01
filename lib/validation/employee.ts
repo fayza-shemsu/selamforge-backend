@@ -21,7 +21,7 @@ export const employeeSchema = z.object({
   base_salary_etb: z.coerce
     .number()
     .positive("Base salary must be a positive number."),
-  org_unit_id: z.string().min(1, "Choose an org unit."),
+  org_unit_id: z.string(),
   is_ethiopian_national: z.boolean()
 });
 

@@ -5,6 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import ValidationError
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.core.deps import TenantContext, get_tenant_context, get_tenant_db, require_role
@@ -34,7 +35,7 @@ def create_employee(
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_tenant_db),
 ):
-    existing = db.query(Employee).filter(Employee.email == payload.email).first()
+    existing = db.query(Employee).filter(func.lower(Employee.email) == payload.email.lower()).first()
     if existing:
         raise HTTPException(status_code=400, detail="employee with this email already exists")
 
@@ -70,16 +71,29 @@ def create_employee(
 
 @router.get("")
 def list_employees(
+    search: Optional[str] = Query(default=None, min_length=1, max_length=100),
     org_unit_id: Optional[uuid.UUID] = Query(default=None),
+    include_inactive: bool = Query(default=False),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     ctx: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_tenant_db),
 ):
-    query = db.query(Employee).filter(Employee.status != "inactive")
+    query = db.query(Employee)
+    if not include_inactive:
+        query = query.filter(Employee.status != "inactive")
 
     if org_unit_id is not None:
         query = query.filter(Employee.org_unit_id == org_unit_id)
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                Employee.first_name.ilike(term),
+                Employee.last_name.ilike(term),
+                Employee.email.ilike(term),
+            )
+        )
 
     result = paginate(query, page=page, page_size=page_size)
     result["items"] = [EmployeeOut.model_validate(e) for e in result["items"]]
@@ -110,6 +124,17 @@ def update_employee(
         raise HTTPException(status_code=404, detail="employee not found")
 
     update_data = payload.model_dump(exclude_unset=True)
+    if "email" in update_data:
+        duplicate = (
+            db.query(Employee)
+            .filter(
+                func.lower(Employee.email) == update_data["email"].lower(),
+                Employee.id != employee_id,
+            )
+            .first()
+        )
+        if duplicate:
+            raise HTTPException(status_code=400, detail="employee with this email already exists")
     _validate_refs(db, update_data.get("manager_id"), update_data.get("org_unit_id"))
     for field, value in update_data.items():
         setattr(employee, field, value)

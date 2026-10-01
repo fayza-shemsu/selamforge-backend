@@ -8,10 +8,21 @@ from app.models.employee import Employee
 import app.models  # noqa: F401 -- registers all models so FK targets resolve
 from app.models.leave_balance import LeaveBalance
 from app.services.leave import calculate_annual_leave_entitlement
+from app.core.event_worker import process_batch
 
 logger = logging.getLogger(__name__)
 
 scheduler = BackgroundScheduler()
+
+
+def process_event_batch():
+    with SessionLocal() as session:
+        try:
+            return process_batch(session)
+        except Exception:
+            session.rollback()
+            logger.exception("event outbox batch failed")
+            return 0
 
 
 def run_leave_accrual():
@@ -50,6 +61,14 @@ def run_leave_accrual():
 
 def start_scheduler():
     if not scheduler.running:
+        scheduler.add_job(
+            process_event_batch,
+            trigger="interval",
+            seconds=5,
+            id="event_outbox_worker",
+            replace_existing=True,
+            max_instances=1,
+        )
         scheduler.add_job(
             run_leave_accrual,
             trigger="cron",

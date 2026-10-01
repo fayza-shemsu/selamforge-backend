@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { X } from "lucide-react";
-import { flatOrgUnits } from "@/lib/mock/org-units";
+import type { OrgUnit } from "@/lib/types/org-unit";
 import {
   orgUnitSchema,
   type OrgUnitFormValues
@@ -13,6 +13,7 @@ import {
 type OrgUnitModalProps = {
   open: boolean;
   initialValues?: OrgUnitFormValues;
+  units: OrgUnit[];
   onClose: () => void;
   onSave: (values: OrgUnitFormValues) => void;
 };
@@ -20,6 +21,7 @@ type OrgUnitModalProps = {
 export function OrgUnitModal({
   open,
   initialValues,
+  units,
   onClose,
   onSave
 }: OrgUnitModalProps) {
@@ -37,8 +39,8 @@ export function OrgUnitModal({
   });
 
   const parentOptions = useMemo(
-    () => flatOrgUnits.filter((unit) => unit.id !== initialValues?.id),
-    [initialValues?.id]
+    () => units.filter((unit) => unit.id !== initialValues?.id),
+    [initialValues?.id, units]
   );
 
   if (!open) {

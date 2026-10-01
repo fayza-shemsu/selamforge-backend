@@ -4,14 +4,11 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Search, Briefcase } from "lucide-react";
 import { EmployeeStatusBadge } from "@/components/EmployeeStatusBadge";
+import { listEmployees, listOrgUnits } from "@/lib/backend-api";
 import { usePaginatedQuery } from "@/lib/hooks/use-paginated-query";
-import {
-  fetchMockEmployees,
-  getOrgUnitName
-} from "@/lib/mock/employees";
-import { flatOrgUnits } from "@/lib/mock/org-units";
+import { useQuery } from "@tanstack/react-query";
 
-const PAGE_SIZE = 3;
+const PAGE_SIZE = 20;
 
 export default function EmployeesPage() {
   const [search, setSearch] = useState("");
@@ -23,12 +20,19 @@ export default function EmployeesPage() {
     [orgUnitId, page, search]
   );
 
+  const orgUnitsQuery = useQuery({
+    queryKey: ["org-units"],
+    queryFn: listOrgUnits
+  });
   const employeesQuery = usePaginatedQuery({
     queryKey: ["employees", queryParams],
-    queryFn: () => fetchMockEmployees(queryParams)
+    queryFn: () => listEmployees(queryParams)
   });
 
   const data = employeesQuery.data;
+  const orgUnitNames = new Map(
+    (orgUnitsQuery.data ?? []).map((unit) => [unit.id, unit.name])
+  );
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
   function updateSearch(value: string) {
@@ -47,8 +51,7 @@ export default function EmployeesPage() {
         <div>
           <h1 className="text-2xl font-semibold text-ink">Employees</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Built against the shared pagination contract:
-            {" {items, total, page, page_size}"}.
+            Employee records and reporting details.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -92,7 +95,7 @@ export default function EmployeesPage() {
               className="field"
             >
               <option value="">All org units</option>
-              {flatOrgUnits.map((unit) => (
+              {(orgUnitsQuery.data ?? []).map((unit) => (
                 <option key={unit.id} value={unit.id}>
                   {unit.name}
                 </option>
@@ -123,7 +126,11 @@ export default function EmployeesPage() {
                     </Link>
                     <p className="text-xs text-slate-500">{employee.email}</p>
                   </td>
-                  <td className="px-4 py-3">{getOrgUnitName(employee.org_unit_id)}</td>
+                  <td className="px-4 py-3">
+                    {employee.org_unit_id
+                      ? orgUnitNames.get(employee.org_unit_id) ?? "Unknown unit"
+                      : "Unassigned"}
+                  </td>
                   <td className="px-4 py-3">{employee.hire_date}</td>
                   <td className="px-4 py-3">
                     <EmployeeStatusBadge status={employee.status} />
@@ -146,7 +153,9 @@ export default function EmployeesPage() {
                 <p className="text-sm text-slate-600">{employee.email}</p>
                 <p className="mt-2 flex items-center gap-2 text-xs text-slate-500">
                   <Briefcase aria-hidden="true" size={14} />
-                  {getOrgUnitName(employee.org_unit_id)} / {employee.status}
+                  {employee.org_unit_id
+                    ? orgUnitNames.get(employee.org_unit_id) ?? "Unknown unit"
+                    : "Unassigned"} / {employee.status}
                 </p>
               </Link>
             ))}
@@ -155,6 +164,12 @@ export default function EmployeesPage() {
           {employeesQuery.isLoading ? (
             <div className="p-6 text-center text-sm text-slate-500">
               Loading employees...
+            </div>
+          ) : null}
+
+          {employeesQuery.isError ? (
+            <div role="alert" className="p-6 text-center text-sm text-red-700">
+              {employeesQuery.error.message}
             </div>
           ) : null}
 

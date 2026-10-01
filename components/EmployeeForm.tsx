@@ -1,10 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import { Save } from "lucide-react";
-import { flatOrgUnits } from "@/lib/mock/org-units";
+import { createEmployee, updateEmployee } from "@/lib/backend-api";
+import { listOrgUnits } from "@/lib/backend-api";
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import {
   employeeSchema,
@@ -12,12 +15,16 @@ import {
 } from "@/lib/validation/employee";
 
 type EmployeeFormProps = {
+  employeeId?: string;
   defaultValues?: Partial<EmployeeFormValues>;
   onSubmit?: (values: EmployeeFormValues) => Promise<void> | void;
 };
 
-export function EmployeeForm({ defaultValues, onSubmit }: EmployeeFormProps) {
+export function EmployeeForm({ employeeId, defaultValues, onSubmit }: EmployeeFormProps) {
+  const router = useRouter();
+  const orgUnitsQuery = useQuery({ queryKey: ["org-units"], queryFn: listOrgUnits });
   const [backendErrors, setBackendErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [draft, setDraft] = useLocalStorage<Partial<EmployeeFormValues>>(
     `employee-form:${defaultValues?.email ?? "new"}`,
     defaultValues ?? {}
@@ -42,20 +49,37 @@ export function EmployeeForm({ defaultValues, onSubmit }: EmployeeFormProps) {
     }
   });
 
-  const watchedValues = watch();
-  useMemo(() => {
-    setDraft(watchedValues);
-  }, [setDraft, watchedValues]);
+  useEffect(() => {
+    const subscription = watch((values) => setDraft(values));
+    return () => subscription.unsubscribe();
+  }, [setDraft, watch]);
 
   async function submit(values: EmployeeFormValues) {
     setBackendErrors({});
+    setSubmitError(null);
 
     try {
-      await onSubmit?.(values);
-    } catch {
-      setBackendErrors({
-        email: "This email may already exist. Backend field errors will appear here."
-      });
+      if (onSubmit) {
+        await onSubmit(values);
+      } else {
+        const payload = {
+          ...values,
+          org_unit_id: values.org_unit_id || null
+        };
+        if (employeeId) {
+          await updateEmployee(employeeId, payload);
+        } else {
+          await createEmployee(payload);
+        }
+      }
+      setDraft({});
+      if (employeeId) {
+        router.refresh();
+      } else {
+        router.push("/dashboard/employees");
+      }
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Could not save employee.");
     }
   }
 
@@ -134,8 +158,8 @@ export function EmployeeForm({ defaultValues, onSubmit }: EmployeeFormProps) {
           Org unit
         </label>
         <select id="org_unit_id" className="field" {...register("org_unit_id")}>
-          <option value="">Choose org unit</option>
-          {flatOrgUnits.map((unit) => (
+          <option value="">Unassigned</option>
+          {(orgUnitsQuery.data ?? []).map((unit) => (
             <option key={unit.id} value={unit.id}>
               {unit.name}
             </option>
@@ -156,7 +180,10 @@ export function EmployeeForm({ defaultValues, onSubmit }: EmployeeFormProps) {
       </label>
 
       <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-        <p>Draft state is being saved locally so you can continue editing later.</p>
+        <div>
+          <p>Draft state is saved locally while you edit.</p>
+          {submitError ? <p role="alert" className="mt-1 text-red-700">{submitError}</p> : null}
+        </div>
         <button
           type="submit"
           disabled={isSubmitting}
