@@ -40,3 +40,5 @@ python-multipart==0.0.32
 apscheduler
 apscheduler
 apscheduler
+openai
+groq
