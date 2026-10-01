@@ -1,11 +1,19 @@
+"use client";
+
 import { EmployeeSummaryCards } from "@/components/EmployeeSummaryCards";
 import { EmptyState } from "@/components/EmptyState";
 import { PeopleInsights } from "@/components/PeopleInsights";
 import { PeopleOperationsPanel } from "@/components/PeopleOperationsPanel";
-import { PhaseTwoOperations } from "@/components/PhaseTwoOperations";
-import { mockEmployees } from "@/lib/mock/employees";
+import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
+import { listAllEmployees } from "@/lib/backend-api";
 
 export default function ReportsPage() {
+  const employeesQuery = useQuery({
+    queryKey: ["employees", "report-summary"],
+    queryFn: () => listAllEmployees(true)
+  });
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
@@ -18,14 +26,12 @@ export default function ReportsPage() {
       <EmployeeSummaryCards />
       <PeopleInsights />
       <PeopleOperationsPanel />
-      <PhaseTwoOperations />
-
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
         <h2 className="text-lg font-semibold text-ink">Employee summary</h2>
         <div className="mt-4 grid gap-3 md:grid-cols-3">
-          {mockEmployees.length > 0 ? (
-            mockEmployees.map((employee) => (
-              <div key={employee.id} className="rounded-md border border-slate-200 p-3">
+          {employeesQuery.data?.length ? (
+            employeesQuery.data.map((employee) => (
+              <Link href={`/dashboard/employees/${employee.id}`} key={employee.id} className="rounded-md border border-slate-200 p-3">
                 <p className="font-medium text-ink">
                   {employee.first_name} {employee.last_name}
                 </p>
@@ -33,8 +39,12 @@ export default function ReportsPage() {
                 <p className="mt-2 text-xs uppercase tracking-wide text-slate-500">
                   {employee.status}
                 </p>
-              </div>
+              </Link>
             ))
+          ) : employeesQuery.isLoading ? (
+            <p className="text-sm text-slate-500">Loading employee report...</p>
+          ) : employeesQuery.isError ? (
+            <p role="alert" className="text-sm text-red-700">{employeesQuery.error.message}</p>
           ) : (
             <EmptyState
               title="No employee records yet"

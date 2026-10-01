@@ -41,6 +41,24 @@ def test_employee_list_shows_only_own_org(pair):
     assert not _ids(body["items"]) & set(other.employee_ids)
 
 
+def test_employee_search_matches_name_and_email_within_tenant(pair):
+    client, me, other = pair
+    employee = client.get(
+        f"{API}/employees/{me.employee_ids[0]}", headers=me.headers
+    ).json()
+    for term in (employee["first_name"], employee["email"]):
+        response = client.get(
+            f"{API}/employees",
+            params={"search": term, "page_size": 100},
+            headers=me.headers,
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["total"] == 1
+        assert body["items"][0]["id"] == me.employee_ids[0]
+        assert body["items"][0]["id"] not in other.employee_ids
+
+
 def test_filtering_by_another_orgs_unit_returns_nothing(pair):
     client, me, other = pair
     r = client.get(f"{API}/employees", params={"org_unit_id": other.unit_id}, headers=me.headers)
@@ -101,6 +119,55 @@ def test_another_orgs_org_unit_cannot_be_changed(pair):
     units = client.get(f"{API}/org-units", headers=other.headers).json()
     assert [u["id"] for u in units] == [other.unit_id]
     assert units[0]["name"] != "Hacked"
+
+
+def test_org_unit_parent_can_be_cleared_and_cycles_are_rejected(pair):
+    client, me, _ = pair
+    child = client.post(
+        f"{API}/org-units",
+        json={"name": "Child", "unit_type": "team", "parent_unit_id": me.unit_id},
+        headers=me.headers,
+    )
+    assert child.status_code == 200, child.text
+    child_id = child.json()["id"]
+
+    cleared = client.patch(
+        f"{API}/org-units/{child_id}",
+        json={"parent_unit_id": None},
+        headers=me.headers,
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["parent_unit_id"] is None
+
+    self_parent = client.patch(
+        f"{API}/org-units/{child_id}",
+        json={"parent_unit_id": child_id},
+        headers=me.headers,
+    )
+    assert self_parent.status_code == 400
+
+    descendant_cycle = client.patch(
+        f"{API}/org-units/{me.unit_id}",
+        json={"parent_unit_id": child_id},
+        headers=me.headers,
+    )
+    assert descendant_cycle.status_code == 400
+    client.delete(f"{API}/org-units/{child_id}", headers=me.headers)
+
+
+def test_employee_email_cannot_be_reused_on_update(pair):
+    client, me, _ = pair
+    employees = [
+        client.get(f"{API}/employees/{employee_id}", headers=me.headers).json()
+        for employee_id in me.employee_ids[:2]
+    ]
+    response = client.patch(
+        f"{API}/employees/{employees[1]['id']}",
+        json={"email": employees[0]["email"].upper()},
+        headers=me.headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "employee with this email already exists"
 
 
 # ---- references: a record may not point at another org's records -------------

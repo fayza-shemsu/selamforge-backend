@@ -2,7 +2,8 @@ export type EmployeeStatus = "active" | "inactive" | "terminated";
 
 export type Employee = {
   id: string;
-  org_unit_id: string;
+  org_unit_id: string | null;
+  manager_id: string | null;
   first_name: string;
   last_name: string;
   email: string;

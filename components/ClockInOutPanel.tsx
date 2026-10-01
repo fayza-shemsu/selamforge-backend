@@ -1,53 +1,63 @@
 "use client";
 
 import { useState } from "react";
-import { LocateFixed, LogIn, LogOut } from "lucide-react";
-
-type ClockState = {
-  clockedIn: boolean;
-  since: string | null;
-};
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { LogIn, LogOut } from "lucide-react";
+import { clockIn, clockOut, listAttendance, listEmployees } from "@/lib/backend-api";
 
 export function ClockInOutPanel() {
-  const [clockState, setClockState] = useState<ClockState>({
-    clockedIn: true,
-    since: "08:12"
-  });
+  const queryClient = useQueryClient();
+  const [employeeId, setEmployeeId] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const employeesQuery = useQuery({
+    queryKey: ["employees", "attendance-select"],
+    queryFn: () => listEmployees({ page: 1, page_size: 100 })
+  });
+  const attendanceQuery = useQuery({
+    queryKey: ["attendance", employeeId],
+    queryFn: () => listAttendance({ employee_id: employeeId, page: 1, page_size: 100 }),
+    enabled: Boolean(employeeId)
+  });
+  const openLog = attendanceQuery.data?.items.find((item) => item.clock_out_at === null);
 
-  function requestLocation(nextClockedIn: boolean) {
+  async function requestClockOut() {
+    if (!employeeId) return;
     setMessage(null);
+    try {
+      await clockOut(employeeId);
+      setMessage("Clock-out recorded.");
+      await queryClient.invalidateQueries({ queryKey: ["attendance"] });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Attendance could not be recorded.");
+    }
+  }
 
+  function requestClockIn() {
+    setMessage(null);
     if (!navigator.geolocation) {
       setMessage("Location is not available in this browser.");
       return;
     }
-
     navigator.geolocation.getCurrentPosition(
-      () => {
-        setClockState({
-          clockedIn: nextClockedIn,
-          since: nextClockedIn
-            ? new Intl.DateTimeFormat("en", {
-                hour: "2-digit",
-                minute: "2-digit"
-              }).format(new Date())
-            : null
-        });
-        setMessage(
-          nextClockedIn
-            ? "Clock-in captured with your current location."
-            : "Clock-out captured and sent for attendance calculation."
-        );
+      async (position) => {
+        if (!employeeId) return;
+        try {
+          await clockIn({
+            employee_id: employeeId,
+            geofence_lat: position.coords.latitude,
+            geofence_lng: position.coords.longitude
+          });
+          setMessage("Clock-in recorded with your location.");
+          await queryClient.invalidateQueries({ queryKey: ["attendance"] });
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : "Attendance could not be recorded.");
+        }
       },
       () => {
-        setMessage("Location permission is required for clock-in and clock-out.");
-      }
+        setMessage("Location permission is required for clock-in.");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
     );
-  }
-
-  function simulateGeofenceViolation() {
-    setMessage("You are outside the allowed clock-in radius.");
   }
 
   return (
@@ -55,37 +65,45 @@ export function ClockInOutPanel() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-ink">Today</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            {clockState.clockedIn
-              ? `Clocked in since ${clockState.since}`
+          <label className="mt-2 block max-w-sm">
+            <span className="sr-only">Employee</span>
+            <select
+              className="field"
+              value={employeeId}
+              onChange={(event) => setEmployeeId(event.target.value)}
+            >
+              <option value="">Choose employee</option>
+              {(employeesQuery.data?.items ?? []).map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.first_name} {employee.last_name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="mt-1 text-sm text-slate-600" aria-live="polite">
+            {openLog
+              ? `Clocked in since ${new Date(openLog.clock_in_at).toLocaleTimeString()}`
               : "Not clocked in"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => requestLocation(!clockState.clockedIn)}
+            onClick={openLog ? requestClockOut : requestClockIn}
+            disabled={!employeeId || employeesQuery.isLoading || attendanceQuery.isFetching}
             className="inline-flex items-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
           >
-            {clockState.clockedIn ? (
+            {openLog ? (
               <LogOut aria-hidden="true" size={16} />
             ) : (
               <LogIn aria-hidden="true" size={16} />
             )}
-            {clockState.clockedIn ? "Clock out" : "Clock in"}
-          </button>
-          <button
-            type="button"
-            onClick={simulateGeofenceViolation}
-            className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-          >
-            <LocateFixed aria-hidden="true" size={16} />
-            Test radius
+            {openLog ? "Clock out" : "Clock in"}
           </button>
         </div>
       </div>
       {message ? (
-        <p className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <p role="status" className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
           {message}
         </p>
       ) : null}

@@ -5,6 +5,7 @@ export const mockEmployees: Employee[] = [
   {
     id: "emp-001",
     org_unit_id: "people",
+    manager_id: null,
     first_name: "Selam",
     last_name: "Feyisa",
     email: "selam.feyisa@selamforge.test",
@@ -16,6 +17,7 @@ export const mockEmployees: Employee[] = [
   {
     id: "emp-002",
     org_unit_id: "recruiting",
+    manager_id: "emp-001",
     first_name: "Mekdes",
     last_name: "Alemu",
     email: "mekdes.alemu@selamforge.test",
@@ -27,6 +29,7 @@ export const mockEmployees: Employee[] = [
   {
     id: "emp-003",
     org_unit_id: "learning",
+    manager_id: "emp-001",
     first_name: "Dawit",
     last_name: "Bekele",
     email: "dawit.bekele@selamforge.test",
@@ -38,6 +41,7 @@ export const mockEmployees: Employee[] = [
   {
     id: "emp-004",
     org_unit_id: "finance",
+    manager_id: null,
     first_name: "Hana",
     last_name: "Tesfaye",
     email: "hana.tesfaye@selamforge.test",
@@ -49,6 +53,7 @@ export const mockEmployees: Employee[] = [
   {
     id: "emp-005",
     org_unit_id: "attendance",
+    manager_id: "emp-004",
     first_name: "Yonatan",
     last_name: "Kassa",
     email: "yonatan.kassa@selamforge.test",
@@ -59,8 +64,8 @@ export const mockEmployees: Employee[] = [
   }
 ];
 
-export function getOrgUnitName(orgUnitId: string) {
-  return flatOrgUnits.find((unit) => unit.id === orgUnitId)?.name ?? "Unknown";
+export function getOrgUnitName(orgUnitId: string | null) {
+  return flatOrgUnits.find((unit) => unit.id === orgUnitId)?.name ?? "Unassigned";
 }
 
 export function getMockEmployee(id: string) {

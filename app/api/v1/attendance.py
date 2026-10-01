@@ -1,9 +1,12 @@
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
+from typing import Optional
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.deps import TenantContext, get_tenant_context, get_tenant_db
+from app.core.pagination import paginate
 from app.models.attendance_log import AttendanceLog
 from app.models.employee import Employee
 from app.models.org_unit import OrgUnit
@@ -12,6 +15,37 @@ from app.services.geo import haversine_meters
 from app.schemas.attendance import ClockInRequest, ClockOutRequest, AttendanceLogOut
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
+
+
+@router.get("")
+def list_attendance(
+    employee_id: Optional[UUID] = Query(default=None),
+    from_date: Optional[date] = Query(default=None),
+    to_date: Optional[date] = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_tenant_db),
+):
+    query = db.query(AttendanceLog)
+    if employee_id is not None:
+        query = query.filter(AttendanceLog.employee_id == employee_id)
+    if from_date is not None:
+        query = query.filter(
+            AttendanceLog.clock_in_at >= datetime.combine(from_date, time.min)
+        )
+    if to_date is not None:
+        query = query.filter(
+            AttendanceLog.clock_in_at < datetime.combine(to_date + timedelta(days=1), time.min)
+        )
+
+    result = paginate(
+        query.order_by(AttendanceLog.clock_in_at.desc()),
+        page=page,
+        page_size=page_size,
+    )
+    result["items"] = [AttendanceLogOut.model_validate(item) for item in result["items"]]
+    return result
 
 
 @router.post("/clock-in", response_model=AttendanceLogOut)

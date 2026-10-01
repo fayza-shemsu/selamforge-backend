@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import Papa from "papaparse";
 import { FileUp, Upload } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { importEmployees } from "@/lib/backend-api";
 import type {
   EmployeeImportRow,
   ImportError,
@@ -15,7 +17,10 @@ const requiredFields: Array<keyof EmployeeImportRow> = [
   "last_name",
   "email",
   "hire_date",
-  "base_salary_etb",
+  "base_salary_etb"
+];
+const displayFields: Array<keyof EmployeeImportRow> = [
+  ...requiredFields,
   "org_unit_id"
 ];
 
@@ -24,9 +29,13 @@ function missingFields(row: EmployeeImportRow) {
 }
 
 export function EmployeeCsvImport() {
+  const queryClient = useQueryClient();
   const [rows, setRows] = useState<EmployeeImportRow[]>([]);
   const [fileName, setFileName] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const previewRows = rows.slice(0, 8);
   const clientErrors = useMemo<ImportError[]>(
@@ -50,21 +59,31 @@ export function EmployeeCsvImport() {
       }
 
       setFileName(file.name);
+      setFile(file);
       setResult(null);
+      setUploadError(null);
       Papa.parse<EmployeeImportRow>(file, {
         header: true,
         skipEmptyLines: true,
-        complete: (parsed) => setRows(parsed.data)
+        complete: (parsed) => setRows(parsed.data),
+        error: (error) => setUploadError(error.message)
       });
     }
   });
 
   async function upload() {
-    const simulatedErrors = clientErrors.slice(0, 5);
-    setResult({
-      created: Math.max(0, rows.length - simulatedErrors.length),
-      errors: simulatedErrors
-    });
+    if (!file) return;
+    setIsUploading(true);
+    setUploadError(null);
+    try {
+      const response = await importEmployees(file);
+      setResult(response);
+      await queryClient.invalidateQueries({ queryKey: ["employees"] });
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Could not upload CSV.");
+    } finally {
+      setIsUploading(false);
+    }
   }
 
   return (
@@ -94,7 +113,7 @@ export function EmployeeCsvImport() {
               <thead className="bg-slate-100 text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Row</th>
-                  {requiredFields.map((field) => (
+                  {displayFields.map((field) => (
                     <th key={field} className="px-3 py-2">
                       {field}
                     </th>
@@ -108,7 +127,7 @@ export function EmployeeCsvImport() {
                   return (
                     <tr key={`${row.email}-${index}`} className="bg-white">
                       <td className="px-3 py-2 text-slate-500">{index + 2}</td>
-                      {requiredFields.map((field) => (
+                      {displayFields.map((field) => (
                         <td
                           key={field}
                           className={`px-3 py-2 ${
@@ -134,10 +153,11 @@ export function EmployeeCsvImport() {
             <button
               type="button"
               onClick={upload}
+              disabled={isUploading || !file}
               className="inline-flex items-center justify-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
             >
               <Upload aria-hidden="true" size={16} />
-              Upload CSV
+              {isUploading ? "Uploading..." : "Upload CSV"}
             </button>
           </div>
         </>
@@ -170,6 +190,7 @@ export function EmployeeCsvImport() {
           ) : null}
         </section>
       ) : null}
+      {uploadError ? <p role="alert" className="text-sm text-red-700">{uploadError}</p> : null}
     </div>
   );
 }

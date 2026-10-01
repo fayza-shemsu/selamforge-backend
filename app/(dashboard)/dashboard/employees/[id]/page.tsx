@@ -1,13 +1,12 @@
-import { notFound } from "next/navigation";
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
 import { EmployeeForm } from "@/components/EmployeeForm";
 import { LeaveBalanceCard } from "@/components/LeaveBalanceCard";
 import { ReportsChain } from "@/components/ReportsChain";
 import { Briefcase, CalendarDays, Mail, ShieldCheck } from "lucide-react";
-import {
-  getMockEmployee,
-  getMockReportsChain,
-  getOrgUnitName
-} from "@/lib/mock/employees";
+import { getEmployee, getOrgUnitTree, getReportsChain } from "@/lib/backend-api";
+import type { OrgUnitNode } from "@/lib/types/org-unit";
 
 type EmployeeDetailPageProps = {
   params: {
@@ -15,14 +14,51 @@ type EmployeeDetailPageProps = {
   };
 };
 
-export default function EmployeeDetailPage({ params }: EmployeeDetailPageProps) {
-  const employee = getMockEmployee(params.id);
+function findUnit(node: OrgUnitNode, unitId: string): OrgUnitNode | null {
+  if (node.id === unitId) return node;
+  for (const child of node.children) {
+    const match = findUnit(child, unitId);
+    if (match) return match;
+  }
+  return null;
+}
 
-  if (!employee) {
-    notFound();
+export default function EmployeeDetailPage({ params }: EmployeeDetailPageProps) {
+  const employeeQuery = useQuery({
+    queryKey: ["employees", params.id],
+    queryFn: () => getEmployee(params.id)
+  });
+  const orgUnitsQuery = useQuery({
+    queryKey: ["org-units", "tree"],
+    queryFn: getOrgUnitTree
+  });
+  const reportsQuery = useQuery({
+    queryKey: ["employees", params.id, "reports-chain"],
+    queryFn: () => getReportsChain(params.id),
+    enabled: Boolean(employeeQuery.data)
+  });
+  const employee = employeeQuery.data;
+
+  if (employeeQuery.isLoading) {
+    return <p className="text-sm text-slate-500">Loading employee...</p>;
   }
 
-  const reportsChain = getMockReportsChain(employee.id);
+  if (employeeQuery.isError || !employee) {
+    return (
+      <p role="alert" className="text-sm text-red-700">
+        {employeeQuery.error?.message ?? "Employee not found."}
+      </p>
+    );
+  }
+
+  function findUnitName(unitId: string | null): string {
+    if (!unitId) return "Unassigned";
+    for (const root of orgUnitsQuery.data ?? []) {
+      const match = findUnit(root, unitId);
+      if (match) return match.name;
+    }
+    return "Unknown unit";
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -40,7 +76,7 @@ export default function EmployeeDetailPage({ params }: EmployeeDetailPageProps) 
             <p className="text-xs uppercase">Org unit</p>
           </div>
           <p className="mt-2 font-medium text-ink">
-            {getOrgUnitName(employee.org_unit_id)}
+            {findUnitName(employee.org_unit_id)}
           </p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
@@ -98,23 +134,29 @@ export default function EmployeeDetailPage({ params }: EmployeeDetailPageProps) 
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
         <h2 className="text-lg font-semibold text-ink">Reports To</h2>
         <div className="mt-3">
-          <ReportsChain chain={reportsChain} />
+          {reportsQuery.isError ? (
+            <p role="status" className="text-sm text-slate-500">{reportsQuery.error.message}</p>
+          ) : (
+            <ReportsChain chain={reportsQuery.data?.chain ?? []} />
+          )}
         </div>
       </section>
 
-      <LeaveBalanceCard />
+      <LeaveBalanceCard employeeId={employee.id} />
 
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
         <h2 className="text-lg font-semibold text-ink">Edit employee</h2>
         <div className="mt-4">
           <EmployeeForm
+            key={employee.id}
+            employeeId={employee.id}
             defaultValues={{
               first_name: employee.first_name,
               last_name: employee.last_name,
               email: employee.email,
               hire_date: employee.hire_date,
               base_salary_etb: employee.base_salary_etb,
-              org_unit_id: employee.org_unit_id,
+              org_unit_id: employee.org_unit_id ?? "",
               is_ethiopian_national: employee.is_ethiopian_national
             }}
           />

@@ -25,6 +25,7 @@ from app.core.db import SessionLocal  # noqa: E402
 from app.core.security import decode_token  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.employee import Employee  # noqa: E402
+from app.models.attendance_log import AttendanceLog  # noqa: E402
 from app.models.event import Event  # noqa: E402
 from app.models.leave_balance import LeaveBalance  # noqa: E402
 from app.models.org import Org  # noqa: E402
@@ -88,7 +89,7 @@ def _purge(org_ids):
     with SessionLocal() as db:
         for org_id in org_ids:
             oid = uuid.UUID(org_id)
-            for model in (LeaveBalance, Event, Employee, OrgUnit, User):
+            for model in (AttendanceLog, LeaveBalance, Event, Employee, OrgUnit, User):
                 db.execute(delete(model).where(model.org_id == oid))
             db.execute(delete(Org).where(Org.id == oid))
         db.commit()
