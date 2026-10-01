@@ -7,6 +7,7 @@ from app.core.deps import TenantContext, get_tenant_context, get_tenant_db
 from app.models.attendance_log import AttendanceLog
 from app.models.employee import Employee
 from app.models.org_unit import OrgUnit
+from app.core.events import emit_event
 from app.services.geo import haversine_meters
 from app.schemas.attendance import ClockInRequest, ClockOutRequest, AttendanceLogOut
 
@@ -85,6 +86,25 @@ def clock_out(
         raise HTTPException(status_code=409, detail="employee is not clocked in")
 
     open_log.clock_out_at = datetime.utcnow()
+
+    elapsed = open_log.clock_out_at - open_log.clock_in_at
+    hours_worked = round(elapsed.total_seconds() / 3600, 2)
+    standard_hours = 8.0
+    overtime_hours = round(max(0.0, hours_worked - standard_hours), 2)
+
+    emit_event(
+        db,
+        org_id=ctx.org_id,
+        event_type="attendance.clock_out",
+        source_module="attendance",
+        payload={
+            "employee_id": str(open_log.employee_id),
+            "attendance_log_id": str(open_log.id),
+            "hours_worked": hours_worked,
+            "overtime_hours": overtime_hours,
+        },
+    )
+
     db.commit()
     db.refresh(open_log)
     return open_log
